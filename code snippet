@@ -1,0 +1,135 @@
+// Add this code to your theme's functions.php file or a custom plugin
+function moving_poster_shortcode() {
+	ob_start();
+	?>
+	<div id="moving-poster">
+    	<ul id="post-titles"></ul>
+	</div>
+	<style>
+    	/* CSS for the horizontal scrolling effect */
+    	#moving-poster {
+        	width: 100%;
+        	overflow: hidden;
+        	background-color: #a1b3d4;
+        	padding: 10px;
+    	}
+
+    	#post-titles {
+        	list-style: none;
+        	padding: 0;
+        	margin: 0;
+        	white-space: nowrap; /* Prevent titles from wrapping to a new line */
+    	}
+
+    	#post-titles li {
+        	display: inline-block; /* Display titles in a row */
+        	margin-right: 20px; /* Adjust space between titles */
+        	font-size: 16px;
+        	line-height: 1.5;
+        	cursor: pointer; /* Add cursor pointer for clickable effect */
+   		 color: #FF0000;
+        	/* Customize further as per your design */
+    	}
+
+    	@keyframes scroll {
+        	0% {
+            	transform: translateX(100%); /* Start from the right side */
+        	}
+        	100% {
+            	transform: translateX(-100%); /* Move towards the left side */
+        	}
+    	}
+	</style>
+	<script>
+    	document.addEventListener('DOMContentLoaded', function() {
+        	fetchLatestPostTitles();
+    	});
+
+    	function fetchLatestPostTitles() {
+        	fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>?action=get_latest_posts')
+            	.then(response => {
+                	if (!response.ok) {
+                    	throw new Error('Network response was not ok');
+                	}
+                	return response.json();
+            	})
+            	.then(posts => {
+                	displayPostTitles(posts);
+                	startScrolling(); // Start the continuous scrolling
+                	addEventHandlers(posts); // Add click/touch event handlers to titles
+            	})
+            	.catch(error => {
+                	console.error('There was a problem fetching posts:', error);
+            	});
+    	}
+
+    	function displayPostTitles(posts) {
+        	var postTitles = document.getElementById('post-titles');
+        	posts.forEach(post => {
+            	var li = document.createElement('li');
+            	li.textContent = post.post_title;
+            	li.dataset.postId = post.post_id; // Set data attribute with post ID
+            	postTitles.appendChild(li);
+        	});
+    	}
+
+    	function startScrolling() {
+        	var postTitles = document.getElementById('post-titles');
+        	var duration = ((postTitles.scrollWidth + window.innerWidth) / 50) * 0.5; // Adjusted duration for increased speed
+
+        	postTitles.style.animation = `scroll ${duration}s linear infinite`; // Apply animation with adjusted duration
+    	}
+
+    	function addEventHandlers(posts) {
+        	var postTitles = document.getElementById('post-titles');
+        	postTitles.addEventListener('click', handleClick); // For click event
+        	postTitles.addEventListener('touchstart', handleTouch, { passive: true }); // For touch event
+
+        	function handleClick(event) {
+            	var clickedTitle = event.target;
+            	handlePostClick(clickedTitle);
+        	}
+
+        	function handleTouch(event) {
+            	var touch = event.changedTouches[0];
+            	var element = document.elementFromPoint(touch.clientX, touch.clientY);
+            	handlePostClick(element);
+        	}
+
+        	function handlePostClick(clickedTitle) {
+            	if (clickedTitle.tagName === 'LI') {
+                	var postId = clickedTitle.dataset.postId;
+                	if (postId) {
+                    	window.location.href = '<?php echo esc_url(home_url('/')); ?>' + '?p=' + postId; // Redirect to post URL
+                	}
+            	}
+        	}
+    	}
+	</script>
+	<?php
+	return ob_get_clean();
+}
+add_shortcode('moving_poster', 'moving_poster_shortcode');
+
+// AJAX handler to get latest posts
+function get_latest_posts() {
+	$args = array(
+    	'posts_per_page' => 5, // Adjust the number of posts you want to display
+    	'orderby' => 'date',
+    	'order' => 'DESC',
+	);
+
+	$latest_posts = get_posts($args);
+	$formatted_posts = array();
+
+	foreach ($latest_posts as $post) {
+    	$formatted_posts[] = array(
+        	'post_id' => $post->ID, // Get post ID
+        	'post_title' => $post->post_title,
+    	);
+	}
+
+	wp_send_json($formatted_posts);
+}
+add_action('wp_ajax_get_latest_posts', 'get_latest_posts');
+add_action('wp_ajax_nopriv_get_latest_posts', 'get_latest_posts');
